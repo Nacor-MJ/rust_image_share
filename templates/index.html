@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>5318008</title>
+  <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body> 
+  <p id="sync-state"></p>
+  <p id="page-number"></p>
+  <div class="control-buttons">
+    <button onclick="move('-')" type="button">⬅️</button>
+    <button onclick="sync()" type="button" title="synchronizace">🔁</button>
+    <button onclick="move('+')" type="button">➡️</button>
+  </div>
+
+  <div class="image-container">
+    <img id="page" class="page" alt="sad no page" width="1167" height="1653"/>
+  </div>
+
+  <div class="control-buttons">
+    <button onclick="move('-')" type="button">⬅️</button>
+    <button onclick="sync()" type="button" title="synchronizace">🔁</button>
+    <button onclick="move('+')" type="button">➡️</button>
+  </div>
+
+  <div class="jumping">
+    <input type="number" name="newLocalPage" id="newLocalPage"><br>
+  </div>
+  
+  <script src="../static/js/script.js"></script>
+</body>
+</html>

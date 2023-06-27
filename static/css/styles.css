@@ -1,0 +1,57 @@
+p {
+    text-align: center;
+    font-size: 3rem;
+}
+.control-buttons {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 10px;
+}
+input[type="number"]{
+    width: 30%;
+    height: auto;
+    font-size: 3rem;
+    margin: 10px;
+}
+.jumping {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    justify-content: space-between;
+    margin: 10px;
+}
+button {
+    width: 30%;
+    padding: 10px;
+    background-color: #eeba0b;
+    color: white;
+    border: none;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 3rem;
+    transition-duration: 0.4s;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #983628;
+}
+body {
+    background-color:#f4e409;
+    margin: 0;
+}
+.image-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    flex-direction: column;
+    height: auto; 
+    margin: 20px;
+}
+.page {
+    max-width: 100%;
+    max-height: 100%;
+}
