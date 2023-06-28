@@ -20,18 +20,16 @@ var globalPage = defaultPage;
 var localPage = defaultPage;
 
 function syncToGlobal() {
-    fetch('/static/json/global-variable.json')
-        .then(response => response.json())
+    fetch('/global-variable')
+        .then(response => response.text())
         .then(data => {
-            globalPage = data.number;
-            console.log('Received number:', globalPage);
+            globalPage = parseInt(data);
+            localPage = globalPage;
+            loadZpevnik(localPage);
         })
         .catch(error => {
             console.error('Error:', error);
         });
-
-    localPage = globalPage;
-    loadZpevnik(localPage);
 }
 
 function updateSyncState() {
@@ -43,15 +41,15 @@ function updateSyncState() {
 }
 
 function jumpToPage(symbol='') {
-    if (symbol === '+'){
+    if (symbol === '+') {
         localPage -= (-1);
     } else if (symbol === '-') {
         localPage -= (1);
         if (localPage < 1) {
             localPage = 1;
         }
-    } else if (!(symbol ==="boobs")){
-        localPage = document.getElementById("newLocalPage").value;
+    } else if (!(symbol ==="boobs")) {
+        localPage = Number(document.getElementById("newLocalPage").value);
     };
     loadZpevnik(localPage);
 }
@@ -62,19 +60,6 @@ function move(direction) {
 function sync() {
     syncToGlobal();
 }
-
-const eventSource = new EventSource('/sse');
-
-eventSource.addEventListener('message', (event) => {
-  const eventData = event.data;
-
-  console.log('Received SSE event:', eventData);
-});
-
-eventSource.addEventListener('error', (error) => {
-  console.error('Error in SSE connection:', error);
-});
-
 
 var textBox = document.getElementById("newLocalPage");
 textBox.addEventListener("keypress", function(event) {

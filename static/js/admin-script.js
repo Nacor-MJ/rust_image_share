@@ -7,12 +7,12 @@ function updateGlobalPage(symbol='') {
             globalPage = 1;
         }
     } else if (!(symbol ==="boobs")){
-        globalPage = document.getElementById("newGlobalPage").value;
+        globalPage = Number(document.getElementById("newGlobalPage").value);
     };
-    
-    syncToGlobal();
-    
-    // emitGlobalPage(); !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+    emitGlobalPage();
+
+    localPage = globalPage;
+    loadZpevnik(localPage);
 }
 
 var textBox = document.getElementById("newGlobalPage");
@@ -28,4 +28,21 @@ function move(direction) {
 }
 function sync() {
     emitGlobalPage();
+}
+
+function emitGlobalPage() {
+    const dataToSend = { number: globalPage };
+
+    fetch("/emiting-global", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+    },
+    body: JSON.stringify(dataToSend),
+    })
+    .then((response) => response.text())
+
+    .catch((error) => {
+        console.error("Error:", error);
+    });
 }
