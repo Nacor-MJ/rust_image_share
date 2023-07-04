@@ -87,7 +87,7 @@ fn read_tcp_stream(mut stream: &TcpStream) -> HttpRequest {
 
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
-    let incoming_request_buffer= std::str::from_utf8(&buffer).unwrap_or("GET / Http/1.1\r\n\r\n\r\n");
+    let incoming_request_buffer= std::str::from_utf8(&buffer).unwrap_or("GET /problem Http/1.1\r\n\r\n\r\n");
     
     println!(
         "\x1B[1;34mIncoming: {:?}, from: {:?}\x1B[0m", 
