@@ -18,12 +18,12 @@ use std::{
 
 fn main() {
     let ip_with_port = SocketAddr::new(local_ip().unwrap(), 7878);
-    println!("\x1B[1;34mIp and port: {:?}\x1B[0m", ip_with_port);
+    println!("\x1B[1;34mIp and port: \n{:?}\x1B[0m", ip_with_port);
 
     let global_page_num = Arc::new(AtomicU32::new(5));
 
     let listener = TcpListener::bind(ip_with_port).unwrap();
-    let pool = ThreadPool::new(1);
+    let pool = ThreadPool::new(10);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();

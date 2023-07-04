@@ -12,13 +12,13 @@ use std::{
     },
 };
 
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 enum Status {
     Get,
     Post,
     Another,
 }
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 struct HttpRequest {
     status: Status,
     path: String,
@@ -66,7 +66,7 @@ impl HttpRequest {
     }
 }
 
-
+#[derive(PartialEq, Debug)]
 enum HttpResponse {
     Succes(String), // here the status code is always 200
     Failed(u32), // the u32 is the status code 
@@ -87,7 +87,7 @@ fn read_tcp_stream(mut stream: &TcpStream) -> HttpRequest {
 
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
-    let incoming_request_buffer= std::str::from_utf8(&buffer).unwrap();
+    let incoming_request_buffer= std::str::from_utf8(&buffer).unwrap_or("GET / Http/1.1\r\n\r\n\r\n");
     
     println!(
         "\x1B[1;34mIncoming: {:?}, from: {:?}\x1B[0m", 
@@ -155,10 +155,10 @@ fn process_incoming_request(
 }
 
 fn read_file_contents(
-    file_name: &HttpResponse, 
+    response: &HttpResponse, 
     global_page_num: &Arc<AtomicU32>
 ) -> Vec<u8> {
-    match file_name {
+    match response {
         HttpResponse::Succes(file_name) => {
             let file_extension = file_name.rsplitn(2, '.').next();
             
@@ -217,34 +217,79 @@ fn send_response(stream: &mut TcpStream, http_response: &HttpResponse, contents:
     stream.flush().expect("Failed to flush stream");
 }
 
-#[test]
-fn test_extract_number_from_http_post() {
-    let post_template = "POST /emiting-global HTTP/1.1
-    Host: 192.168.0.105:7878
-    Connection: keep-alive
-    Content-Length: 12
-    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 OPR/99.0.0.0
-    Content-Type: application/json
-    Accept: */*
-    Origin: http://192.168.0.105:7878
-    Referer: http://192.168.0.105:7878/admin
-    Accept-Encoding: gzip, deflate
-    Accept-Language: en-US,en;q=0.9".to_owned();
-    
-    assert_eq!(extract_number_from_http_post(
-        &format!("{} \n {{\"number\":8}}", post_template)), 
-        Some(8)
-    );
-    assert_eq!(extract_number_from_http_post(
-        &format!("{} \n {{\"number\":-6}}", post_template)),
-        None
-    );
-    assert_eq!(extract_number_from_http_post(
-        &format!("{} \n {{\"number\":s}}", post_template)),
-        None
-    );
-    assert_eq!(extract_number_from_http_post(
-        &format!("{} \n", post_template)),
-        None
-    );
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_request_new() {
+        let http_str = "POST /emiting-global HTTP/1.1
+Host: 420.069.0.000:7878
+
+{{\"number\":8}}".to_owned();
+
+        let request = HttpRequest::new(&http_str);
+
+        assert_eq!(
+            request,
+            HttpRequest {
+                status: Status::Post,
+                path: "/emiting-global".to_owned(),
+                headers: "Host: 420.069.0.000:7878\n".to_owned(),
+                body: Some("{{\"number\":8}}".to_owned()),
+            },
+        )
+    }
+    #[test]
+    fn test_proccesing_request() {
+        let global_page_num = Arc::new(AtomicU32::new(5));
+        let incoming_request = HttpRequest { 
+            status: Status::Get, 
+            path: "/".to_owned(), 
+            headers: "Host: 420.069.0.000:7878".to_owned(), 
+            body: Some("{{\"number\":8}}".to_owned()),
+        };
+        assert_eq!(
+            process_incoming_request(incoming_request, &global_page_num),
+            HttpResponse::Succes("templates/index.html".to_owned()),
+        );
+    }
+    #[test]
+    fn test_file_read() {
+        let global_page_num = Arc::new(AtomicU32::new(5));
+
+        read_file_contents(&HttpResponse::Succes("templates/index.html".to_owned()), &global_page_num);
+        read_file_contents(&HttpResponse::Failed(404), &global_page_num);
+    }
+
+    #[test]
+    fn test_extract_number_from_http_post() {
+        let post_template = "POST /emiting-global HTTP/1.1
+        Host: 192.168.0.105:7878
+        Connection: keep-alive
+        Content-Length: 12
+        User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 OPR/99.0.0.0
+        Content-Type: application/json
+        Accept: */*
+        Origin: http://192.168.0.105:7878
+        Referer: http://192.168.0.105:7878/admin
+        Accept-Encoding: gzip, deflate
+        Accept-Language: en-US,en;q=0.9".to_owned();
+        
+        assert_eq!(extract_number_from_http_post(
+            &format!("{} \n {{\"number\":8}}", post_template)), 
+            Some(8)
+        );
+        assert_eq!(extract_number_from_http_post(
+            &format!("{} \n {{\"number\":-6}}", post_template)),
+            None
+        );
+        assert_eq!(extract_number_from_http_post(
+            &format!("{} \n {{\"number\":s}}", post_template)),
+            None
+        );
+        assert_eq!(extract_number_from_http_post(
+            &format!("{} \n", post_template)),
+            None
+        );
+    }
 }

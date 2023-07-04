@@ -52,7 +52,7 @@ pub mod server {
             drop(self.sender.take());
 
             for worker in &mut self.workers {
-                println!("Shutting down worker {}", worker.id);
+                println!("\x1B[1;31mShutting down worke: \"{}\"\x1B[0m", worker.id);
 
                 if let Some(thread) = worker.thread.take() {
                     thread.join().unwrap();
