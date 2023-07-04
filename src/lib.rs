@@ -13,11 +13,59 @@ use std::{
 };
 
 #[derive(Debug)]
-enum HttpRequest {
-    Get(String), // path
-    Post(String, Option<u32>), // path and the new page num
-    Another(String), // the whole request
+enum Status {
+    Get,
+    Post,
+    Another,
 }
+#[derive(Debug)]
+struct HttpRequest {
+    status: Status,
+    path: String,
+    headers: String,
+    body: Option<String>,
+}
+impl HttpRequest {
+    fn new(request: &str) -> Self {
+        let request = request.to_owned() + "\n";
+        let mut whitespace_iter = request.split_ascii_whitespace();
+        let status = match whitespace_iter
+            .next()
+            .expect("The buffer is empty") {
+            "GET" => Status::Get,
+            "POST" => Status::Post,
+            _ => Status::Another,
+        };
+        let path = whitespace_iter
+            .next()
+            .to_owned()
+            .unwrap_or(" ")
+            .to_owned();
+        
+        let lines_vec = request.lines().collect::<Vec<_>>();
+
+        let separator_index = lines_vec.iter().position(|&l| l.is_empty()).unwrap_or(0);
+
+        let (_, bottom) = lines_vec.split_at(1); // http request without the first line
+
+        let (headers, body) = bottom.split_at(separator_index);
+
+        let headers = headers.join("\n");
+        let body = body.join("\n");
+        let body = if body.is_empty() {
+            None
+        } else {
+            Some(body)
+        };
+        HttpRequest {
+            status,
+            path,
+            headers,
+            body,
+        }
+    }
+}
+
 
 enum HttpResponse {
     Succes(String), // here the status code is always 200
@@ -43,32 +91,13 @@ fn read_tcp_stream(mut stream: &TcpStream) -> HttpRequest {
     
     println!(
         "\x1B[1;34mIncoming: {:?}, from: {:?}\x1B[0m", 
-        incoming_request_buffer.lines().next().expect("failed to read the incoming status line"), 
+        incoming_request_buffer.lines().next()
+            .expect("failed to read the incoming status line"), 
         stream.peer_addr()
     );
 
-    let incoming_request = match incoming_request_buffer {
-        get_request if incoming_request_buffer.starts_with("GET") => {
-            let file_path = extract_path_from_request(get_request);
-            if let Some(semi_valid_path) = file_path {
-                HttpRequest::Get(semi_valid_path.to_owned())
-            } else {
-                HttpRequest::Another(get_request.to_owned())
-            }
-        },
-        post_request if incoming_request_buffer.starts_with("POST") => {
-            let file_path = extract_path_from_request(post_request);
-            let new_page_num = extract_number_from_http_post(post_request);
-            if let Some(semi_valid_path) = file_path {
-                HttpRequest::Post(semi_valid_path.to_owned(), new_page_num)
-            } else {
-                HttpRequest::Another(post_request.to_owned())
-            }
-        },
-        unknown_request => {
-            HttpRequest::Another(unknown_request.to_owned())
-        }
-    };
+    let incoming_request = 
+        HttpRequest::new(incoming_request_buffer);
     
     incoming_request
 }
@@ -80,57 +109,55 @@ fn extract_number_from_http_post(http_post: &str) -> Option<u32> {
     number_str.parse::<u32>().ok()
 }
 
-fn extract_path_from_request(request: &str) -> Option<&str> {
-    let mut iter = request.split_whitespace();
-    let _ = iter.next();
-    let path = iter.next()?;
-
-    Some(path)
-}
-
 fn process_incoming_request(
-    incoming_status_line: HttpRequest, 
+    incoming_request: HttpRequest, 
     global_page_num: &Arc<AtomicU32>
 ) -> HttpResponse {
-    match incoming_status_line {
-        HttpRequest::Get(path) => match path.as_str() {
+    match incoming_request.status {
+        Status::Get => match incoming_request.path.as_str() {
             "/" => HttpResponse::Succes("templates/index.html".to_owned()),
             "/admin" => HttpResponse::Succes("templates/admin.html".to_owned()),
             "/contents" => HttpResponse::Succes("templates/contents.html".to_owned()),
             "/global-variable" => HttpResponse::Succes("global-variable.num".to_owned()),
             file_path => {
-                let file_path = &(".".to_owned() + file_path); // no f*cking clue wth this is, worked before, now it needs this...
+                // no f*cking clue wth this is, worked before, now it needs this...
+                let file_path = &(".".to_owned() + file_path); 
                 if std::path::Path::new(file_path).exists() {
                     HttpResponse::Succes(file_path.to_owned())
                 } else {
-                    println!("\x1B[1;31mproblem: |{}|\x1B[0m", file_path);
+                    println!("\x1B[1;31mproblem: \"{}\"\x1B[0m", file_path);
                     HttpResponse::Failed(404)
                 }
             },     
         },
-        HttpRequest::Post(path, new_page_num) => match path.as_str() {
-            "/emiting-global" => {
-                match new_page_num {
-                    Some(valid_page_num) => {
-                        global_page_num.store(valid_page_num, Ordering::Relaxed);
-                        println!("global num: {}", valid_page_num);
-                        HttpResponse::Succes("this_really_doesnt_matter_boobs_are_great_though.none".to_owned())
-                    },
-                    None => {
-                        HttpResponse::Failed(400)
-                    },
+        Status::Post => { // could be improved with a custom error type
+            if incoming_request.path.as_str()
+                .eq_ignore_ascii_case("/emiting-global") &&
+                incoming_request.body.is_some() 
+            {
+                let option_page_num = extract_number_from_http_post(
+                    &incoming_request.body.expect("extracting num from http Post #1")
+                );
+                if option_page_num.is_some() {
+                    let valid_page_num = option_page_num.expect("extracting num from http Post #2");
+                    global_page_num.store(valid_page_num, Ordering::Relaxed);
+                    println!("global num: {}", valid_page_num);
+                    return HttpResponse::Succes("this_really_doesnt_matter.none".to_owned())
                 }
-            },
-            _ => HttpResponse::Failed(400)
-        }
-        HttpRequest::Another(request) => {
-            println!("400 bad request: {}", request);
+            }
+            HttpResponse::Failed(404)
+        },
+        Status::Another => {
+            println!("400 bad request: {:?}", incoming_request);
             HttpResponse::Failed(400)
         }
     }
 }
 
-fn read_file_contents(file_name: &HttpResponse, global_page_num: &Arc<AtomicU32>) -> Vec<u8> {
+fn read_file_contents(
+    file_name: &HttpResponse, 
+    global_page_num: &Arc<AtomicU32>
+) -> Vec<u8> {
     match file_name {
         HttpResponse::Succes(file_name) => {
             let file_extension = file_name.rsplitn(2, '.').next();
@@ -138,24 +165,28 @@ fn read_file_contents(file_name: &HttpResponse, global_page_num: &Arc<AtomicU32>
             match file_extension {
                 Some("png") => {
                     let mut image_data = Vec::new();
-                    let mut file = std::fs::File::open(file_name).expect("Failed to open image file");
+                    let mut file = std::fs::File::open(file_name)
+                        .expect("Failed to open image file");
                     file.read_to_end(&mut image_data).expect("Failed to read image file");
                     image_data
                 }
                 Some("json") => {
-                    let contents = fs::read_to_string(file_name).expect("Failed to read JSON file");
-                    let json_data: serde_json::Value = serde_json::from_str(&contents).expect("Failed to read JSON file");
+                    let contents = fs::read_to_string(file_name)
+                        .expect("Failed to read JSON file");
+                    let json_data: serde_json::Value = serde_json::from_str(&contents)
+                        .expect("Failed to read JSON file");
                     serde_json::to_vec(&json_data).expect("Failed to serialize JSON")
                 },
                 Some("num") => Vec::from(global_page_num.load(Ordering::Relaxed).to_string()),
-                Some("none") => Vec::from(b" ".to_owned()),
+                Some("none") => Vec::from(fs::read("templates/404.html".to_owned()).unwrap()),
                 _ => {
-                    let file = fs::read(file_name).expect(&format!("Failed to read the {} file", file_name));
+                    let file = fs::read(file_name)
+                        .expect(&format!("Failed to read the {} file", file_name));
                     Vec::from(file)
                 },
             }
         },
-        HttpResponse::Failed(_) => Vec::from(b" ".to_owned()), // empty Vec to make the compiler happy :D
+        HttpResponse::Failed(_) => Vec::from(fs::read("templates/404.html".to_owned()).unwrap()), 
     }
 }
 
@@ -200,8 +231,20 @@ fn test_extract_number_from_http_post() {
     Accept-Encoding: gzip, deflate
     Accept-Language: en-US,en;q=0.9".to_owned();
     
-    assert_eq!(extract_number_from_http_post(&format!("{} \n {{\"number\":8}}", post_template)), Some(8));
-    assert_eq!(extract_number_from_http_post(&format!("{} \n {{\"number\":-6}}", post_template)), None);
-    assert_eq!(extract_number_from_http_post(&format!("{} \n {{\"number\":s}}", post_template)), None);
-    assert_eq!(extract_number_from_http_post(&format!("{} \n", post_template)), None);
+    assert_eq!(extract_number_from_http_post(
+        &format!("{} \n {{\"number\":8}}", post_template)), 
+        Some(8)
+    );
+    assert_eq!(extract_number_from_http_post(
+        &format!("{} \n {{\"number\":-6}}", post_template)),
+        None
+    );
+    assert_eq!(extract_number_from_http_post(
+        &format!("{} \n {{\"number\":s}}", post_template)),
+        None
+    );
+    assert_eq!(extract_number_from_http_post(
+        &format!("{} \n", post_template)),
+        None
+    );
 }
