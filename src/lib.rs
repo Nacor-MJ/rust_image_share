@@ -200,10 +200,8 @@ fn send_response(stream: &mut TcpStream, http_response: &HttpResponse, contents:
             uknown_num => format!("HTTP/1.1 {}", uknown_num) // dont know if this works
         }
     };
-    match http_response {
-        HttpResponse::Succes(_) => println!("\x1B[1;32mResponse: {:?}\x1B[0m", status_line),
-        HttpResponse::Failed(_) => println!("\x1B[1;31mResponse: {:?}\x1B[0m", status_line),
-    }
+    
+    println!("\x1B[1;32mResponse: {:?}\x1B[0m", status_line);
     
     let response = format!(
         "{}\r\nContent-Length: {}\r\n\r\n",
