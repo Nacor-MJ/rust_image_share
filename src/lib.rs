@@ -90,10 +90,10 @@ fn read_tcp_stream(mut stream: &TcpStream) -> HttpRequest {
     let incoming_request_buffer= std::str::from_utf8(&buffer).unwrap_or("GET /problem Http/1.1\r\n\r\n\r\n");
     
     println!(
-        "\x1B[1;34mIncoming: {:?}, from: {:?}\x1B[0m", 
+        "\x1B[1;34mIncoming: {:?}, From: {:?}\x1B[0m", 
         incoming_request_buffer.lines().next()
             .expect("failed to read the incoming status line"), 
-        stream.peer_addr()
+        stream.peer_addr(),
     );
 
     let incoming_request = 
@@ -119,6 +119,7 @@ fn process_incoming_request(
             "/admin" => HttpResponse::Succes("templates/admin.html".to_owned()),
             "/contents" => HttpResponse::Succes("templates/contents.html".to_owned()),
             "/global-variable" => HttpResponse::Succes("global-variable.num".to_owned()),
+            "/wgpu" => HttpResponse::Succes("templates/wgpu.html".to_owned()),
             file_path => {
                 // no f*cking clue wth this is, worked before, now it needs this...
                 let file_path = &(".".to_owned() + file_path); 
