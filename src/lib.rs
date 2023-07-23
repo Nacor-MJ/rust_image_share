@@ -3,9 +3,7 @@ mod server;
 use std::{
     fs,
     io::prelude::*,
-    net::{
-        TcpStream,
-    }, 
+    net::TcpStream,
     sync::{
         Arc, 
         atomic::{AtomicU32, Ordering}
@@ -110,7 +108,7 @@ fn extract_number_from_http_post(http_post: &str) -> Option<u32> {
 }
 
 fn process_incoming_request(
-    incoming_request: HttpRequest, 
+    incoming_request: HttpRequest,
     global_page_num: &Arc<AtomicU32>
 ) -> HttpResponse {
     match incoming_request.status {
@@ -119,7 +117,7 @@ fn process_incoming_request(
             "/admin" => HttpResponse::Succes("templates/admin.html".to_owned()),
             "/contents" => HttpResponse::Succes("templates/contents.html".to_owned()),
             "/global-variable" => HttpResponse::Succes("global-variable.num".to_owned()),
-            "/wgpu" => HttpResponse::Succes("templates/wgpu.html".to_owned()),
+            "/custom" => HttpResponse::Succes("templates/custom.html".to_owned()),
             file_path => {
                 // no f*cking clue wth this is, worked before, now it needs this...
                 let file_path = &(".".to_owned() + file_path); 
@@ -129,7 +127,7 @@ fn process_incoming_request(
                     println!("\x1B[1;31mproblem: \"{}\"\x1B[0m", file_path);
                     HttpResponse::Failed(404)
                 }
-            },     
+            },
         },
         Status::Post => { // could be improved with a custom error type
             if incoming_request.path.as_str()
@@ -145,6 +143,22 @@ fn process_incoming_request(
                     println!("global num: {}", valid_page_num);
                     return HttpResponse::Succes("this_really_doesnt_matter.none".to_owned())
                 }
+            } else if incoming_request.path.as_str()
+                .eq_ignore_ascii_case("/saving-html") &&
+                incoming_request.body.is_some() 
+            {
+                let song: Vec<String>= incoming_request.body.unwrap().lines().map(|f| f.to_string()).collect();
+                
+                if song.is_empty() { return HttpResponse::Failed(404) }
+
+                let song_name = song.get(0).unwrap().clone();
+                let song_html = song.get(1).unwrap().clone();
+
+                let song_file = fs::File::create(format!("htmlFiles/{}.html", &song_name.trim()));
+                
+                write!(song_file.expect("trouble with accesing the file"), "{}", song_html.trim_matches('\0')).expect("trouble af");
+
+                return HttpResponse::Succes("this_really_doesnt_matter.none".to_owned())
             }
             HttpResponse::Failed(404)
         },
@@ -204,12 +218,19 @@ fn send_response(stream: &mut TcpStream, http_response: &HttpResponse, contents:
     println!("\x1B[1;32mResponse: {:?}\x1B[0m", status_line);
     
     let response = format!(
-        "{}\r\nContent-Length: {}\r\n\r\n",
+        "{}\r\nContent-Length: {}\r\n",
         status_line,
         contents.len()
     );
 
     let mut response_bytes = response.into_bytes();
+    
+    if contents == Vec::from(fs::read("./wgpu/pkg/wgpu.js").unwrap()) {
+        response_bytes.extend_from_slice(b"Content-Type:application/javascript\r\n");
+        println!("{:?}", std::str::from_utf8(&response_bytes));
+    };
+        
+    response_bytes.extend_from_slice(b"\r\n");
     response_bytes.extend_from_slice(contents);
 
     stream.write_all(&response_bytes).expect("Failed to write response");
